@@ -1,0 +1,6 @@
+# 导航到指定位置
+geometry_msgs/PoseStamped target_pose
+float32 tolerance
+---
+bool success
+string message

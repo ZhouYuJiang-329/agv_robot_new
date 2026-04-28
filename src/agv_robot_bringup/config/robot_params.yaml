@@ -1,0 +1,98 @@
+# Robot parameters
+
+/**:
+  ros__parameters:
+    # Common parameters
+    robot_name: "agv_robot"
+    
+    # AGV parameters
+    agv:
+      max_linear_velocity: 1.0        # m/s
+      max_angular_velocity: 1.0       # rad/s
+      wheel_base: 0.5                 # m
+      wheel_radius: 0.1               # m
+      safety_margin: 0.3              # m
+      
+    # Arm parameters
+    arm:
+      planning_group: "arm"
+      dof: 6
+      max_velocity: 1.57              # rad/s
+      max_acceleration: 3.14          # rad/s^2
+      default_velocity_scaling: 0.5
+      default_acceleration_scaling: 0.5
+      
+      # Joint limits (example for 6-DOF arm)
+      joint_limits:
+        joint1: {min: -3.14, max: 3.14, max_vel: 1.57, max_effort: 100.0}
+        joint2: {min: -1.57, max: 1.57, max_vel: 1.57, max_effort: 100.0}
+        joint3: {min: -3.14, max: 3.14, max_vel: 1.57, max_effort: 100.0}
+        joint4: {min: -3.14, max: 3.14, max_vel: 1.57, max_effort: 100.0}
+        joint5: {min: -1.57, max: 1.57, max_vel: 1.57, max_effort: 100.0}
+        joint6: {min: -3.14, max: 3.14, max_vel: 1.57, max_effort: 100.0}
+      
+      # Workspace limits
+      workspace:
+        min_x: 0.2
+        max_x: 0.8
+        min_y: -0.5
+        max_y: 0.5
+        min_z: 0.1
+        max_z: 1.0
+    
+    # Ultrasound parameters
+    ultrasound:
+      sensor_count: 8
+      max_range: 4.0                  # m
+      min_range: 0.05                 # m
+      field_of_view: 0.26             # rad (15度)
+      measurement_rate: 10            # Hz
+      
+      # Sensor mounting positions (angle in radians from front)
+      sensor_positions:
+        sensor_0: {angle: 0.0, height: 0.3}        # Front
+        sensor_1: {angle: 0.785, height: 0.3}      # Front-Right
+        sensor_2: {angle: 1.57, height: 0.3}       # Right
+        sensor_3: {angle: 2.356, height: 0.3}      # Rear-Right
+        sensor_4: {angle: 3.14, height: 0.3}       # Rear
+        sensor_5: {angle: -2.356, height: 0.3}     # Rear-Left
+        sensor_6: {angle: -1.57, height: 0.3}      # Left
+        sensor_7: {angle: -0.785, height: 0.3}     # Front-Left
+    
+    # Camera parameters
+    camera:
+      width: 1920
+      height: 1080
+      fps: 30
+      fov: 1.22                       # rad (70度)
+      depth_enabled: true
+      
+      # Intrinsic parameters (example)
+      intrinsics:
+        fx: 1000.0
+        fy: 1000.0
+        cx: 960.0
+        cy: 540.0
+    
+    # Control parameters
+    control:
+      arm_control_rate: 100.0         # Hz
+      agv_control_rate: 50.0          # Hz
+      
+      # PID gains for arm
+      arm_pid:
+        kp: [100.0, 100.0, 100.0, 50.0, 50.0, 50.0]
+        ki: [10.0, 10.0, 10.0, 5.0, 5.0, 5.0]
+        kd: [10.0, 10.0, 10.0, 5.0, 5.0, 5.0]
+      
+      # PID gains for AGV
+      agv_pid:
+        linear: {kp: 1.0, ki: 0.1, kd: 0.01}
+        angular: {kp: 1.0, ki: 0.1, kd: 0.01}
+    
+    # Planning parameters
+    planning:
+      planning_time: 5.0              # seconds
+      max_planning_attempts: 5
+      goal_tolerance: 0.001           # m
+      orientation_tolerance: 0.01     # rad

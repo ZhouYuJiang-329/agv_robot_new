@@ -1,0 +1,5 @@
+# 目标检测
+string object_class    # 空字符串表示检测所有类别
+float32 confidence_threshold
+---
+DetectionResult[] detections

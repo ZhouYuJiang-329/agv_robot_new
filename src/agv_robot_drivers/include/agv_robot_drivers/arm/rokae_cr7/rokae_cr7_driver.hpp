@@ -1,0 +1,170 @@
+/**
+ * @file rokae_cr7_driver.hpp
+ * @brief 珞石CR7机械臂驱动 - 基于官方SDK实现
+ */
+
+#ifndef AGV_ROBOT_DRIVERS_ARM_ROKAE_CR7_DRIVER_HPP_
+#define AGV_ROBOT_DRIVERS_ARM_ROKAE_CR7_DRIVER_HPP_
+
+#include <array>
+#include <string>
+#include <vector>
+#include <memory>
+#include <atomic>
+
+#include "agv_robot_hal/arm/arm_interface.hpp"
+#include "rokae/robot.h"
+#include "rokae/data_types.h"
+
+namespace agv_robot {
+namespace drivers {
+
+/**
+ * @brief 配置参数结构体
+ */
+struct AgvConfig {
+    std::string robot_ip = "192.168.1.158";  // 机械臂IP地址
+    std::string robot_name = "rokae_cr7";     // 机械臂名称
+};
+
+/**
+ * @brief 珞石CR7机械臂驱动类
+ *
+ * 直接继承ArmInterface，使用珞石官方SDK进行机械臂控制
+ * 支持7自由度协作机械臂的各种控制模式
+ */
+class RokaeCR7Driver : public hal::ArmInterface {
+public:
+    /**
+     * @brief 构造函数
+     * @param config 配置参数
+     */
+    explicit RokaeCR7Driver(const AgvConfig& config);
+
+    /**
+     * @brief 析构函数
+     */
+    ~RokaeCR7Driver() override;
+
+    /**
+     * @brief 连接到机器人控制器
+     * @return true=连接成功，false=连接失败
+     */
+    bool connect() override;
+
+    /**
+     * @brief 断开与机器人控制器的连接
+     */
+    void disconnect() override;
+
+    /**
+     * @brief 检查是否已连接
+     * @return true=已连接，false=未连接
+     */
+    bool isConnected() const override { return is_connected_; }
+
+    /**
+     * @brief 激活机器人（上电、设置模式等）
+     * @return true=激活成功，false=激活失败
+     */
+    bool activate() override;
+
+    /**
+     * @brief 停用机器人（停止运动、断电等）
+     */
+    void deactivate() override;
+
+    /**
+     * @brief 读取当前关节位置
+     * @return 6 个关节的角度数组（弧度）
+     */
+    std::array<double, 6> getJointPositions() override;
+
+    /**
+     * @brief 读取当前笛卡尔位置
+     * @return 6 个笛卡尔坐标系数据 （x, y, z, rx, ry, rz）
+     */
+    std::array<double, 6> getPosturePositions() override;
+
+    /**
+     * @brief 发送关节空间运动命令
+     * @param joints 6 个关节的目标角度（弧度）
+     * @return true=命令发送成功，false=发送失败
+     */
+    bool sendJointCommand(const std::array<double, 6>& joints) override;
+
+    /**
+     * @brief 发送笛卡尔空间运动命令
+     * @param points 路径点数组，每个点包含 {x, y, z, rx, ry, rz}
+     * @param move_type 运动类型："joint" 或 "linear"
+     * @param speed 运动速度（mm/s）
+     * @return true=命令发送成功，false=发送失败
+     */
+    bool sendCartesianCommand(const std::vector<std::array<double, 6>>& points,
+                              const std::string& move_type, double speed) override;
+
+    /**
+     * @brief 等待运动完成
+     * @param timeout_ms 超时时间（毫秒）
+     * @return true=运动完成，false=超时或出错
+     */
+    bool waitForMotionComplete(int timeout_ms = 10000) override;
+
+    /**
+     * @brief 检查是否有运动正在执行
+     * @return true=有运动正在执行，false=空闲
+     */
+    bool isMotionExecuting() const override { return nrt_executing_; }
+
+    /**
+     * @brief 获取当前运动命令 ID
+     */
+    const std::string& getCurrentCommandId() const override { return current_cmd_id_; }
+
+private:
+    // ==================== Configuration ====================
+    std::string robot_ip_;      // 机械臂IP地址
+    std::string robot_name_;    // 机械臂名称
+
+    // ==================== SDK Handle ====================
+    std::unique_ptr<rokae::xMateRobot> robot_handle_;
+    rokae::error_code ec_;      // SDK错误码
+
+    // ==================== State ====================
+    std::atomic<bool> is_connected_{false};
+    std::atomic<bool> is_activated_{false};
+    std::atomic<bool> nrt_executing_{false};
+    std::string current_cmd_id_;
+
+    // ==================== Helper Methods ====================
+
+    /**
+     * @brief 将弧度转换为度
+     */
+    static double radToDeg(double rad);
+
+    /**
+     * @brief 将度转换为弧度
+     */
+    static double degToRad(double deg);
+
+    /**
+     * @brief 将SDK位姿转换为数组 {x, y, z, rx, ry, rz}
+     */
+    std::array<double, 6> sdkPoseToArray(const rokae::Pose& pose);
+
+    /**
+     * @brief 将数组 {x, y, z, rx, ry, rz} 转换为SDK位姿
+     */
+    rokae::Pose arrayToSdkPose(const std::array<double, 6>& arr);
+
+    /**
+     * @brief 生成唯一命令ID
+     */
+    std::string generateCommandId();
+};
+
+} // namespace drivers
+} // namespace agv_robot
+
+#endif // AGV_ROBOT_DRIVERS_ARM_ROKAE_CR7_DRIVER_HPP_

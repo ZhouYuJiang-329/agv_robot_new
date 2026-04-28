@@ -1,0 +1,15 @@
+# 巡逻任务
+# Goal
+geometry_msgs/PoseStamped[] waypoints
+int32 loop_count    # -1 表示无限循环
+float32 wait_time_at_waypoint
+---
+# Result
+bool success
+string message
+int32 completed_loops
+---
+# Feedback
+int32 current_waypoint_index
+geometry_msgs/PoseStamped current_pose
+float32 estimated_remaining_time

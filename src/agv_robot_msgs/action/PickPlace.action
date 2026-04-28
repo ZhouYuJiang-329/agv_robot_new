@@ -1,0 +1,23 @@
+# 抓取放置任务
+# Goal
+string object_id
+geometry_msgs/Pose object_pose
+geometry_msgs/Pose place_pose
+float32 grasp_force
+---
+# Result
+bool success
+string message
+uint8 grasp_quality
+---
+# Feedback
+uint8 stage
+uint8 STAGE_APPROACH=0
+uint8 STAGE_ALIGN=1
+uint8 STAGE_GRASP=2
+uint8 STAGE_LIFT=3
+uint8 STAGE_TRANSPORT=4
+uint8 STAGE_PLACE=5
+
+float32 progress
+string status_message

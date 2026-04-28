@@ -1,0 +1,18 @@
+# 机械臂运动任务
+# Goal
+string motion_type    # "joint", "cartesian", "trajectory"
+float64[] joint_positions
+geometry_msgs/Pose target_pose
+moveit_msgs/RobotTrajectory trajectory
+float32 velocity_scaling
+float32 acceleration_scaling
+---
+# Result
+bool success
+string message
+sensor_msgs/JointState final_state
+---
+# Feedback
+float32 progress
+string current_stage
+sensor_msgs/JointState current_state

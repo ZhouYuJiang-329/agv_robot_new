@@ -1,0 +1,10 @@
+# 机械臂运动
+string target_type    # "joint" or "cartesian"
+float64[] joint_positions    # 关节目标 (当 target_type="joint")
+geometry_msgs/Pose pose      # 笛卡尔目标 (当 target_type="cartesian")
+float32 velocity
+float32 acceleration
+---
+bool success
+string message
+sensor_msgs/JointState final_state
