@@ -8,16 +8,7 @@ endif()
 # Find dependencies
 find_package(ament_cmake REQUIRED)
 
-# Add all subdirectories
-add_subdirectory(src/agv_robot_common)
-add_subdirectory(src/agv_robot_msgs)
-add_subdirectory(src/agv_robot_hal)
-# add_subdirectory(src/agv_robot_capability)
-# add_subdirectory(src/agv_robot_planning)
-# add_subdirectory(src/agv_robot_control)
-# add_subdirectory(src/agv_robot_perception)
-# add_subdirectory(src/agv_robot_task_manager)
-# add_subdirectory(src/agv_robot_drivers)
-# add_subdirectory(src/agv_robot_bringup)
+# This is a metapackage, no actual build needed
+# All sub-packages are built independently by colcon
 
 ament_package()

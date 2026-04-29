@@ -128,7 +128,7 @@ private:
 
     // ==================== SDK Handle ====================
     std::unique_ptr<rokae::xMateRobot> robot_handle_;
-    rokae::error_code ec_;      // SDK错误码
+    error_code ec_;      // SDK错误码
 
     // ==================== State ====================
     std::atomic<bool> is_connected_{false};
@@ -137,26 +137,6 @@ private:
     std::string current_cmd_id_;
 
     // ==================== Helper Methods ====================
-
-    /**
-     * @brief 将弧度转换为度
-     */
-    static double radToDeg(double rad);
-
-    /**
-     * @brief 将度转换为弧度
-     */
-    static double degToRad(double deg);
-
-    /**
-     * @brief 将SDK位姿转换为数组 {x, y, z, rx, ry, rz}
-     */
-    std::array<double, 6> sdkPoseToArray(const rokae::Pose& pose);
-
-    /**
-     * @brief 将数组 {x, y, z, rx, ry, rz} 转换为SDK位姿
-     */
-    rokae::Pose arrayToSdkPose(const std::array<double, 6>& arr);
 
     /**
      * @brief 生成唯一命令ID

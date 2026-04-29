@@ -72,7 +72,7 @@ void RokaeCR7Driver::disconnect() {
         }
 
         // 断开连接
-        robot_handle_->disconnectFromRobot();
+        robot_handle_->disconnectFromRobot(ec_);
         std::cout << "[RokaeCR7Driver] Disconnected from robot" << std::endl;
 
     } catch (const std::exception& e) {
@@ -169,16 +169,16 @@ std::array<double, 6> RokaeCR7Driver::getJointPositions() {
     try {
         ec_.clear();
 
-        // 获取关节状态
-        auto joint_state = robot_handle_->jointStates(ec_);
+        // 获取关节位置
+        auto joint_positions = robot_handle_->jointPos(ec_);
         if (ec_) {
-            std::cerr << "[RokaeCR7Driver] Failed to get joint states" << std::endl;
+            std::cerr << "[RokaeCR7Driver] Failed to get joint positions" << std::endl;
             return positions;
         }
 
-        // 转换为弧度（SDK返回度）
-        for (size_t i = 0; i < 6 && i < joint_state.jointPositions.size(); ++i) {
-            positions[i] = degToRad(joint_state.jointPositions[i]);
+        // SDK 返回的是弧度，直接使用
+        for (size_t i = 0; i < 6 && i < joint_positions.size(); ++i) {
+            positions[i] = joint_positions[i];
         }
 
     } catch (const std::exception& e) {
@@ -199,14 +199,20 @@ std::array<double, 6> RokaeCR7Driver::getPosturePositions() {
     try {
         ec_.clear();
 
-        // 获取末端位姿
-        auto pose = robot_handle_->endEffectorPose(ec_);
+        // 获取末端位姿 [x, y, z, rx, ry, rz] (单位: m, rad)
+        auto pose = robot_handle_->posture(rokae::CoordinateType::endInRef, ec_);
         if (ec_) {
             std::cerr << "[RokaeCR7Driver] Failed to get end effector pose" << std::endl;
             return posture;
         }
 
-        posture = sdkPoseToArray(pose);
+        // 转换为 mm
+        posture[0] = pose[0] * 1000.0;  // X
+        posture[1] = pose[1] * 1000.0;  // Y
+        posture[2] = pose[2] * 1000.0;  // Z
+        posture[3] = pose[3];           // Rx
+        posture[4] = pose[4];           // Ry
+        posture[5] = pose[5];           // Rz
 
     } catch (const std::exception& e) {
         std::cerr << "[RokaeCR7Driver] Error getting posture: " << e.what() << std::endl;
@@ -232,21 +238,34 @@ bool RokaeCR7Driver::sendJointCommand(const std::array<double, 6>& joints) {
         // 设置运动标记
         nrt_executing_ = true;
 
-        // 将弧度转换为度
-        std::vector<double> joint_positions_deg(6);
-        for (size_t i = 0; i < 6; ++i) {
-            joint_positions_deg[i] = radToDeg(joints[i]);
-        }
+        // 关节角度已经是弧度，直接使用
+        std::vector<double> joint_positions(joints.begin(), joints.end());
 
-        // 发送关节运动命令
-        robot_handle_->moveJoint(joint_positions_deg, ec_);
+        // 创建关节位置目标
+        rokae::JointPosition target;
+        target.joints = joint_positions;
 
+        // 创建绝对关节运动命令
+        rokae::MoveAbsJCommand cmd(target);
+
+        // 发送命令
+        std::string cmd_id;
+        robot_handle_->moveAppend(cmd, cmd_id, ec_);
         if (ec_) {
-            std::cerr << "[RokaeCR7Driver] Failed to send joint command" << std::endl;
+            std::cerr << "[RokaeCR7Driver] Failed to append joint command" << std::endl;
             nrt_executing_ = false;
             return false;
         }
 
+        // 开始运动
+        robot_handle_->moveStart(ec_);
+        if (ec_) {
+            std::cerr << "[RokaeCR7Driver] Failed to start motion" << std::endl;
+            nrt_executing_ = false;
+            return false;
+        }
+
+        current_cmd_id_ = cmd_id;
         return true;
 
     } catch (const std::exception& e) {
@@ -280,28 +299,42 @@ bool RokaeCR7Driver::sendCartesianCommand(const std::vector<std::array<double, 6
         // 设置速度
         robot_handle_->setDefaultSpeed(static_cast<int>(speed), ec_);
 
-        if (move_type == "linear") {
-            // 直线运动
-            for (const auto& point : points) {
-                auto pose = arrayToSdkPose(point);
-                robot_handle_->moveLinear(pose, ec_);
-                if (ec_) {
-                    std::cerr << "[RokaeCR7Driver] Linear motion failed" << std::endl;
-                    nrt_executing_ = false;
-                    return false;
-                }
+        // 添加所有路径点
+        for (const auto& point : points) {
+            // 创建笛卡尔位置目标 (mm -> m)
+            rokae::CartesianPosition target;
+            target.trans[0] = point[0] / 1000.0;  // X
+            target.trans[1] = point[1] / 1000.0;  // Y
+            target.trans[2] = point[2] / 1000.0;  // Z
+            target.rpy[0] = point[3];             // Rx
+            target.rpy[1] = point[4];             // Ry
+            target.rpy[2] = point[5];             // Rz
+
+            if (move_type == "linear") {
+                // 直线运动
+                rokae::MoveLCommand cmd(target);
+                cmd.zone = 0.5;  // mm
+                robot_handle_->moveAppend(cmd, current_cmd_id_, ec_);
+            } else {
+                // 关节运动（默认）
+                rokae::MoveJCommand cmd(target);
+                cmd.zone = 0.5;  // mm
+                robot_handle_->moveAppend(cmd, current_cmd_id_, ec_);
             }
-        } else {
-            // 关节运动（默认）
-            for (const auto& point : points) {
-                auto pose = arrayToSdkPose(point);
-                robot_handle_->moveJoint(pose, ec_);
-                if (ec_) {
-                    std::cerr << "[RokaeCR7Driver] Joint motion failed" << std::endl;
-                    nrt_executing_ = false;
-                    return false;
-                }
+
+            if (ec_) {
+                std::cerr << "[RokaeCR7Driver] Failed to append motion command" << std::endl;
+                nrt_executing_ = false;
+                return false;
             }
+        }
+
+        // 开始运动
+        robot_handle_->moveStart(ec_);
+        if (ec_) {
+            std::cerr << "[RokaeCR7Driver] Failed to start motion" << std::endl;
+            nrt_executing_ = false;
+            return false;
         }
 
         return true;
@@ -339,78 +372,6 @@ bool RokaeCR7Driver::waitForMotionComplete(int timeout_ms) {
 }
 
 // ==================== Helper Methods ====================
-
-double RokaeCR7Driver::radToDeg(double rad) {
-    return rad * 180.0 / M_PI;
-}
-
-double RokaeCR7Driver::degToRad(double deg) {
-    return deg * M_PI / 180.0;
-}
-
-std::array<double, 6> RokaeCR7Driver::sdkPoseToArray(const rokae::Pose& pose) {
-    std::array<double, 6> arr{};
-
-    // 位置 (m -> mm)
-    arr[0] = pose.position.x * 1000.0;
-    arr[1] = pose.position.y * 1000.0;
-    arr[2] = pose.position.z * 1000.0;
-
-    // 姿态（四元数转欧拉角 rx, ry, rz）
-    // 这里使用简化的转换，实际项目中可能需要更精确的转换
-    double x = pose.orientation.x;
-    double y = pose.orientation.y;
-    double z = pose.orientation.z;
-    double w = pose.orientation.w;
-
-    // Roll (rx)
-    double sinr_cosp = 2.0 * (w * x + y * z);
-    double cosr_cosp = 1.0 - 2.0 * (x * x + y * y);
-    arr[3] = std::atan2(sinr_cosp, cosr_cosp);
-
-    // Pitch (ry)
-    double sinp = 2.0 * (w * y - z * x);
-    if (std::abs(sinp) >= 1.0) {
-        arr[4] = std::copysign(M_PI / 2.0, sinp);
-    } else {
-        arr[4] = std::asin(sinp);
-    }
-
-    // Yaw (rz)
-    double siny_cosp = 2.0 * (w * z + x * y);
-    double cosy_cosp = 1.0 - 2.0 * (y * y + z * z);
-    arr[5] = std::atan2(siny_cosp, cosy_cosp);
-
-    return arr;
-}
-
-rokae::Pose RokaeCR7Driver::arrayToSdkPose(const std::array<double, 6>& arr) {
-    rokae::Pose pose;
-
-    // 位置 (mm -> m)
-    pose.position.x = arr[0] / 1000.0;
-    pose.position.y = arr[1] / 1000.0;
-    pose.position.z = arr[2] / 1000.0;
-
-    // 姿态（欧拉角转四元数）
-    double rx = arr[3];
-    double ry = arr[4];
-    double rz = arr[5];
-
-    double cy = std::cos(rz * 0.5);
-    double sy = std::sin(rz * 0.5);
-    double cp = std::cos(ry * 0.5);
-    double sp = std::sin(ry * 0.5);
-    double cr = std::cos(rx * 0.5);
-    double sr = std::sin(rx * 0.5);
-
-    pose.orientation.w = cr * cp * cy + sr * sp * sy;
-    pose.orientation.x = sr * cp * cy - cr * sp * sy;
-    pose.orientation.y = cr * sp * cy + sr * cp * sy;
-    pose.orientation.z = cr * cp * sy - sr * sp * cy;
-
-    return pose;
-}
 
 std::string RokaeCR7Driver::generateCommandId() {
     auto now = std::chrono::system_clock::now();
